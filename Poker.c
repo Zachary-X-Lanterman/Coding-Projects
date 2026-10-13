@@ -289,7 +289,7 @@ uint8_t checkForStraightFlush(uint8_t checkingHand[], uint8_t startOfStraight, u
             {
                 //printCard(checkingHand[i],false);
                 //printf(" Has been found!\n");
-                i = -1; //Go back to scanning the start of the hand again. CHANGE IF -1 FUCKS SOMETHING UP!
+                i = -1; //Go back to scanning the start of the hand again. CHANGE IF -1 messS SOMETHING UP!
                 matchCount++; //Increase the match count, as one card matches.
                 //Repeat this process untill AKQJ10 are all found.
             }
@@ -316,7 +316,7 @@ uint8_t checkForStraightFlush(uint8_t checkingHand[], uint8_t startOfStraight, u
             {
                 //printCard(checkingHand[i],false);
                 //printf(" has been found!\n");
-                i = -1; //Go back to scanning the start of the hand again. CHANGE IF -1 FUCKS SOMETHING UP!
+                i = -1; //Go back to scanning the start of the hand again. CHANGE IF -1 messS SOMETHING UP!
                 cardToFind -= 16; //decrease the rank by one by subtracting 16 (remember cards are stored as hex values.)
                 matchCount++; //Increase the match count, as one card matches.
                 //Repeat this process until 5 matches are found.
@@ -446,7 +446,7 @@ uint16_t scoreHand(uint8_t hand[], uint8_t handID)
     };
 
     //I have to initalize it to 0 because, even though I put an initalizer,
-    //C still won't zero out the array for me. Dafuq
+    //C still won't zero out the array for me. Da hek?
 
     //We'll reuse the array of 4 for later, hence the weird name.
     //To begin, CSAOAK will count the occurences of each suit.
@@ -578,7 +578,7 @@ uint16_t scoreHand(uint8_t hand[], uint8_t handID)
     }
 
     //Now we can count pairs and threes of a kind.
-    countSuitsAndOfAKind[2] = 0; //zero these out so it doesn't fuck with anything
+    countSuitsAndOfAKind[2] = 0; //zero these out so it doesn't mess with anything
     countSuitsAndOfAKind[3] = 0; 
     for (i = 0; i < 13; i++)
     {
