@@ -67,7 +67,8 @@ Finally, the value is bit shifted left four times to store the handID.
 //Player states
 #define OUTOFGAME 0
 #define FOLDED 1
-#define PLAYING 2
+#define TURNDONE 2
+#define PLAYING 3
 
 //Game states
 #define PREFLOP 0
@@ -85,7 +86,6 @@ struct player
     unsigned int funds;
     uint8_t playerState;
     bool isBot;
-    bool turnDone;
 
     //The way bots will make a choice all depends on a riskiness margin.
     // For example, the margin below is from Straight to Full House.
@@ -101,10 +101,10 @@ struct player
 
 struct player players[5] = {
     {"Playtester",{0x00,0x00},100,PLAYING,0},
-    {"Carrie",{0x00,0x00},100,PLAYING,1,0,0,6}, //Margin is from High Card to Full House. Very risky plays.
-    {"Mallok",{0x00,0x00},100,PLAYING,1,0,3,5}, //Margin is from Trips to Flush.
-    {"Askii",{0x00,0x00},100,PLAYING,1,0,1,4}, //Pair to Straight
-    {"ChatPCP",{0x00,0x00},100,PLAYING,1,0,0,3}, //High Card to Trips. Stupid risky plays.
+    {"Carrie",{0x00,0x00},100,PLAYING,1,0,6}, //Margin is from High Card to Full House. Very risky plays.
+    {"Mallok",{0x00,0x00},100,PLAYING,1,3,5}, //Margin is from Trips to Flush.
+    {"Askii",{0x00,0x00},100,PLAYING,1,1,4}, //Pair to Straight
+    {"ChatCPP",{0x00,0x00},100,PLAYING,1,0,3}, //High Card to Trips. Stupid risky plays.
 };
 
 uint8_t nextDraw;
@@ -119,6 +119,7 @@ bool canCheck = false;
 uint8_t dealerButton;
 uint8_t smallBlindButton;
 uint8_t bigBlindButton;
+uint8_t playersGone;
 
 uint8_t getRank(uint8_t cardIn){return cardIn >> 4;}
 uint8_t getSuit(uint8_t cardIn){return cardIn & 0b00001111;}
@@ -247,8 +248,7 @@ void printCard(uint8_t cardIn, char after)
     putchar(after);
 }
 
-char *handNames[] = 
-{
+char *handNames[] = {
     "High card",
     "Pair",
     "Two Pair",
@@ -289,7 +289,7 @@ uint8_t checkForStraightFlush(uint8_t checkingHand[], uint8_t startOfStraight, u
             {
                 //printCard(checkingHand[i],false);
                 //printf(" Has been found!\n");
-                i = -1; //Go back to scanning the start of the hand again. CHANGE IF -1 messS SOMETHING UP!
+                i = -1; //Go back to scanning the start of the hand again. CHANGE IF -1 FUCKS SOMETHING UP!
                 matchCount++; //Increase the match count, as one card matches.
                 //Repeat this process untill AKQJ10 are all found.
             }
@@ -316,7 +316,7 @@ uint8_t checkForStraightFlush(uint8_t checkingHand[], uint8_t startOfStraight, u
             {
                 //printCard(checkingHand[i],false);
                 //printf(" has been found!\n");
-                i = -1; //Go back to scanning the start of the hand again. CHANGE IF -1 messS SOMETHING UP!
+                i = -1; //Go back to scanning the start of the hand again. CHANGE IF -1 FUCKS SOMETHING UP!
                 cardToFind -= 16; //decrease the rank by one by subtracting 16 (remember cards are stored as hex values.)
                 matchCount++; //Increase the match count, as one card matches.
                 //Repeat this process until 5 matches are found.
@@ -358,7 +358,7 @@ void resetDeck()
         SWAP8(deckInPlay[i],deckInPlay[newIndex]);
     }
 }
-/*
+/* A very early prototype of player AI I scrapped...
 void bot1Turn()
 {
     //Bot1 is random.
@@ -416,6 +416,7 @@ void bot3Turn()
 */
 uint16_t scoreHand(uint8_t hand[], uint8_t handID)  
 {
+    //I'm very proud of this function :)
     uint8_t i = 0; //general iterator
 
     /*
@@ -446,7 +447,7 @@ uint16_t scoreHand(uint8_t hand[], uint8_t handID)
     };
 
     //I have to initalize it to 0 because, even though I put an initalizer,
-    //C still won't zero out the array for me. Da hek?
+    //C still won't zero out the array for me. Dafuq
 
     //We'll reuse the array of 4 for later, hence the weird name.
     //To begin, CSAOAK will count the occurences of each suit.
@@ -578,7 +579,7 @@ uint16_t scoreHand(uint8_t hand[], uint8_t handID)
     }
 
     //Now we can count pairs and threes of a kind.
-    countSuitsAndOfAKind[2] = 0; //zero these out so it doesn't mess with anything
+    countSuitsAndOfAKind[2] = 0; //zero these out so it doesn't screw with anything
     countSuitsAndOfAKind[3] = 0; 
     for (i = 0; i < 13; i++)
     {
@@ -802,6 +803,7 @@ static inline void actionRaise(struct player *Player, unsigned int betAmount)
     pot += betAmount;
     minBet = betAmount;
     printf("%s raises, betting %d. The pot is now worth $%d.\n",Player->name,betAmount,pot);
+    Player->playerState = TURNDONE;
 }
  
 static inline void actionCall(struct player *Player)
@@ -809,27 +811,30 @@ static inline void actionCall(struct player *Player)
     Player->funds -= minBet;
     pot += minBet;
     printf("%s calls, adding $%d to the pot. The pot is now worth $%d.\n",Player->name,minBet,pot);
+    Player->playerState = TURNDONE;
+    
 }
 
 static inline void actionFold(struct player *Player)
 {
-    Player->playerState = FOLDED;
     printf("%s folds, tossing their cards onto the table.\n",Player->name);
+    Player->playerState = FOLDED;
 }
 
 static inline void actionCheck(struct player *Player)
 {
     printf("%s checks, tapping their fingers on the table.\n",Player->name);
     canCheck = false;
+    Player->playerState = TURNDONE;
 }
 
 static inline void playerAI(struct player *bot, uint8_t playerID)
-{ //I could probably optomize this to not run scoreHand() if funds < pot, but eh. This is easier to code and follow.
+{ //I could probably optimize this to not run scoreHand() if funds < pot, but eh. This is easier to code and follow.
     uint8_t handType = (scoreHand(bot->hand, playerID)) >> 0x0C; //Score the hand and get the type.
 
     if (handType < bot->riskinessBelow)
     {
-        if (canCheck == 1) {actionCheck(bot);} //Note that we don't put &bot here, as bot is already a pointer.
+        if (canCheck) {actionCheck(bot);} //Note that we don't put &bot here, as bot is already a pointer.
         else {actionFold(bot);}
     }
 
@@ -839,9 +844,9 @@ static inline void playerAI(struct player *bot, uint8_t playerID)
 
         if (whatToBet < 0) {actionFold(bot);}
         else if (whatToBet > 0) {actionRaise(bot, whatToBet);}
-        else {actionCheck(bot);}
+        else {actionCall(bot);}
     }
-    else {actionCheck(bot);}
+    else {actionCall(bot);}
 }
 
 void playerTurn()
@@ -889,6 +894,7 @@ void playerTurn()
                 pot += bet;
                 players[0].funds -= bet;
                 printf("You have bet $%d. The pot is now worth $%d.\n",bet,pot);
+                players[0].playerState = TURNDONE;
                 humanPlayerTurnUnfinished = false;
                 break;
             case 'F':
@@ -900,6 +906,7 @@ void playerTurn()
                 pot += minBet;
                 players[0].funds -= minBet;
                 printf("You call, adding $%d to the pot. The pot is now worth $%d.\n",minBet,pot);
+                players[0].playerState = TURNDONE;
                 humanPlayerTurnUnfinished = false;
                 break;
             case 'H':
@@ -907,6 +914,7 @@ void playerTurn()
                 {
                     printf("You check, tapping two fingers against the table.\n");
                     canCheck = false;
+                    players[0].playerState = TURNDONE;
                     humanPlayerTurnUnfinished = false;
                     break;
                 }
@@ -925,6 +933,8 @@ void playerTurn()
 
 int main()
 { 
+
+    newgame:
     printf("Let the games begin!\n\n");
 
     srand(time(NULL));
@@ -932,6 +942,8 @@ int main()
 
     //Note that mod 5 will always select a number between 0 and 4. This is handy due to the cyclical nature of 
     //Big Blind <- Small Blind <- Dealer. players[dealerbutton + 1] posts the small blind and + 2 posts the big blind.
+
+
 
     dealerButton = rand() % 5; //Select a random player to have the dealer button.
     smallBlindButton = (dealerButton + 1) % 5;
@@ -982,12 +994,10 @@ int main()
     //Main game loop. Behaviour changes depending on gameState.
     while (gameState != SHOWDOWN)
     {
-        //This inner while loop runs once for every round of betting. It continues until every player has gone,
-        //as evidenced by currentPlayer.turnDone == true. If so, we must have gone through the full loop,
-        //as there's no other reason why it would be true.
-        while(players[currentPlayer].turnDone == false)
+        //This inner while loop runs once for every round of betting. It continues until every player has gone.
+        while(playersGone != 5)
         {
-            if (players[currentPlayer].isBot == false)
+            if (players[currentPlayer].isBot == false && players[0].playerState == PLAYING)
             {
                 printf("Your hand: ");
                 printCard(players[0].hand[0],' ');
@@ -995,23 +1005,28 @@ int main()
 
                 playerTurn();
             }
-            else
+            else if (players[currentPlayer].playerState == PLAYING)
             {
                 playerAI(&(players[currentPlayer]), currentPlayer); ///NMIGHT BE WRONG>!>!??!?!?
             }
-            //Lastly, mark the current player as finished with their turn and move on to the next.
-            players[currentPlayer].turnDone = true;
+            //Lastly, move on to the next. We CANNOT just set the player's state to TURNDONE, as they might have folded! THis is taken care of in the action functions.
             currentPlayer = (currentPlayer + 1) % 5;
+            playersGone++;
+
         }
         //At the end of each round of betting...
         //First, reset all necessary values to their defualt states for the next round.
         for (uint8_t i = 0; i < 5; i++) 
         {
-            players[i].turnDone = false;
+            if(players[i].playerState >= TURNDONE) //Out of game and folded are 0 and 1 respectively, while TURNDONE is 2. Make sure you don't deal in the broke players!
+            {
+                players[i].playerState = PLAYING;
+            }
         }
+
+        playersGone = 0;
         currentPlayer = smallBlindButton;
         canCheck = true;
-        
         //Next, advance the game to the next round, and deal new cards accordingly.
         gameState++;
         switch (gameState)
@@ -1053,63 +1068,40 @@ int main()
     putchar('\n');
     for (uint8_t i = 0; i < 5; i++)
     {
-        finalScores[i] = scoreHand(players[i].hand, i);
-        printf("%s has ",players[i].name);
-        printCard(players[i].hand[0], ' ');
-        printCard(players[i].hand[1], '\n');
-        printf("A %s!\n", handNames[finalScores[i] && 0xF]); //Bitwising with 15 gets the last hex digit
+        if (players[i].playerState >= TURNDONE) //Don't bother scoring the hands of people out of the game!
+        {
+            finalScores[i] = scoreHand(players[i].hand, i);
+            printf("%s has ",players[i].name);
+            printCard(players[i].hand[0], ' ');
+            printCard(players[i].hand[1], '\n');
+            printf("a %s!\n", handNames[finalScores[i] >> 12]); //Bitshifting right by 12 gets the first hex digit, which is the name of the hand
+        }
     }
 
-    //Using a 4 input sorting network to order the final scores from least to greatest.
+    //Using a 5 input sorting network to order the final scores from least to greatest.
+    SWAP16(finalScores[0],finalScores[3]); SWAP16(finalScores[1],finalScores[4]);
     SWAP16(finalScores[0],finalScores[2]); SWAP16(finalScores[1],finalScores[3]);
-    SWAP16(finalScores[0],finalScores[1]); SWAP16(finalScores[2],finalScores[3]);
-    SWAP16(finalScores[1],finalScores[2]);
+    SWAP16(finalScores[0],finalScores[1]); SWAP16(finalScores[2],finalScores[4]);
+    SWAP16(finalScores[1],finalScores[2]); SWAP16(finalScores[3],finalScores[4]);
+    SWAP16(finalScores[2],finalScores[3]);
 
-    printf("%s wins this hand!", players[(finalScores[0] & 15)].name);
+    printf("%s wins this hand!\n\n", players[(finalScores[4] & 15)].name);
+
+    //New game logic
+    resetDeck();
+    memset(communityCards, 0, 5); //Resets community cards so that the scoring algorith doesn't take into account last round's cards.
+    for (uint8_t i = 0; i < 4; i++) //Reset each player to a pre-game state.
+    {
+        if(players[i].playerState != OUTOFGAME)
+        {
+            players[i].playerState = PLAYING;
+        }
+    }
+    delay_ms(1000);
+    gameState = PREFLOP;
+    playersGone = 0;
+
+    goto newgame;
+
 }
 
-/* It's time for the SHOWDOWN!
-
-    printf("Your hand:\n");
-    printCard(playerHand[0],false);
-    putchar(' ');
-    printCard(playerHand[1],true);
-
-    printf("\nB1 hand:\n");
-    printCard(bot1Hand[0],false);
-    putchar(' ');
-    printCard(bot1Hand[1],true);
-
-    printf("\nB2 hand:\n");
-    printCard(bot2Hand[0],false);
-    putchar(' ');
-    printCard(bot2Hand[1],true);
-
-    printf("\nB3 hand:\n");
-    printCard(bot3Hand[0],false);
-    putchar(' ');
-    printCard(bot3Hand[1],true);
-    
-    printf("\ncommunity cards:\n");
-
-    for (uint8_t i = 0; i < 5; i++)
-    {
-        printCard(communityCards[i],false);
-        putchar(' ');
-    }
-    
-    finalScores[0] = scorehand(playerHand,0);
-    finalScores[1] = scorehand(bot1Hand,1);
-    finalScores[2] = scorehand(bot2Hand,2);
-    finalScores[3] = scorehand(bot3Hand,3);
-
-    //Using a 4 input sorting network to order the final scores from least to greatest.
-    SWAP16(finalScores[0],finalScores[2]); SWAP16(finalScores[1],finalScores[3]);
-    SWAP16(finalScores[0],finalScores[1]); SWAP16(finalScores[2],finalScores[3]);
-    SWAP16(finalScores[1],finalScores[2]);
-
-    putchar('\n');
-    for (uint8_t i = 4; i > 0; i--)
-    {
-        printf("Player %d has a %s!\n", ((finalScores[i - 1] & 15) + 1),handNames[finalScores[i - 1] << 12]); //Bitwising with 15 gets the last four bits.
-    }*/
